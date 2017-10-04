@@ -190,6 +190,33 @@ class Tensegrity:
             return geometric_matrix[indices, :]
         return geometric_matrix
 
+    def get_compatibility_matrix(self, reduce_columns: bool = True) -> np.ndarray:
+        """This method returns the compatibility matrix [B] of the tensegrity.
+        The compatibility condition is controlled by :math:`[B]{d} = {\Delta}`,
+        where :math:`[B]` is the compatibility matrix, :math:`{d}` is the nodal
+        displacement vector, and :math:`{\Delta}` is the member elongation vector.
+
+        The full compatibility matrix is b-by-nd, where d is the dimension of the
+        ambient space, n is the number of nodes, and b is the number of members.
+        The compatibility matrix is the transpose of the equilibrium matrix.
+        However, by default the method will not return the full matrix if there
+        are DOF constraints. Instead, the columns corresponding to the constrained
+        DOFs will be deleted. This behaviour can be changed by setting the parameter
+        reduce_rows to be False, which gives the full matrix.
+
+        Each column of the geometric matrix corresponds to a DOF of the structure.
+        The DOFs associated with one node are grouped together. Therefore, for example,
+        the first three columns correspond to x, y and z directions of Node 1.
+
+        :param reduce_columns: bool
+        :return: the compatibility matrix :math:`[B]`
+        :rtype: np.ndarray
+        """
+        if reduce_columns:
+            return self.get_equilibrium_matrix().transpose()
+        else:
+            return self.get_equilibrium_matrix(False).transpose()
+
 
 if __name__ is "__main__":
     nodal_coordinates = np.array([[0.2588, 0.9659, 0.5],  # Node 1
