@@ -151,7 +151,44 @@ class Tensegrity:
             return equilibrium_matrix[indices, :]
         return equilibrium_matrix
 
+    def get_geometric_matrix(self, reduce_rows: bool = True) -> np.ndarray:
+        """This method returns the geometric matrix :math:`[\Pi]` of the tensegrity.
+        The equilibrium condition of a tensegrity structure is controlled by
+        :math:`[\Pi]{q} = {f}`, where :math:`[\Pi]` is the geometric matrix,
+        :math:`{q}` is the force density vector, and :math:`{f}` is the external
+        nodal force vector.
 
+        The full geometric matrix is dn-by-b, where d is the dimension of the
+        ambient space, n is the number of nodes, and b is the number of members.
+        However, by default the method will not return the full matrix if there
+        are DOF constraints. Instead, the rows corresponding to the constrained
+        DOFs will be deleted. This behaviour can be changed by setting the parameter
+        reduce_rows to be False, which gives the full matrix.
+
+        Each row of the geometric matrix corresponds to a DOF of the structure.
+        The DOFs associated with one node are grouped together. Therefore, for example,
+        the first three rows correspond to x, y and z directions of Node 1.
+
+        :param reduce_rows: bool
+        :return: the geometric matrix :math:`[\Pi]`
+        :rtype: np.ndarray
+        """
+        geometric_matrix = np.zeros((self.dimension * self.number_of_nodes, self.number_of_members))
+        for member_index in range(self.number_of_members):
+            node1 = self.connectivity[member_index, 0]
+            node2 = self.connectivity[member_index, 1]
+            if node1 > node2:
+                node1, node2 = node2, node1
+            nodal_difference = self.nodal_coordinates[node1 - 1, :] - self.nodal_coordinates[node2 - 1, :]
+            geometric_matrix[self.dimension * (node1 - 1):self.dimension * node1,
+            member_index] = nodal_difference
+            geometric_matrix[self.dimension * (node2 - 1):self.dimension * node2,
+            member_index] = -nodal_difference
+
+        if reduce_rows:
+            indices = np.array(sorted(list(self.free_dofs))) - 1
+            return geometric_matrix[indices, :]
+        return geometric_matrix
 
 
 if __name__ is "__main__":
