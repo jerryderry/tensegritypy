@@ -125,6 +125,10 @@ class Tensegrity:
         DOFs will be deleted. This behaviour can be changed by setting the parameter
         reduce_rows to be False, which gives the full matrix.
 
+        Each row of the equilibrium matrix corresponds to a DOF of the structure.
+        The DOFs associated with one node are grouped together. Therefore, for example,
+        the first three rows correspond to x, y and z directions of Node 1.
+
         :param reduce_rows: bool
         :return: the equilibrium matrix [A]
         :rtype: np.ndarray
