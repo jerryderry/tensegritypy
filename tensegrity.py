@@ -181,9 +181,9 @@ class Tensegrity:
                 node1, node2 = node2, node1
             nodal_difference = self.nodal_coordinates[node1 - 1, :] - self.nodal_coordinates[node2 - 1, :]
             geometric_matrix[self.dimension * (node1 - 1):self.dimension * node1,
-            member_index] = nodal_difference
+                             member_index] = nodal_difference
             geometric_matrix[self.dimension * (node2 - 1):self.dimension * node2,
-            member_index] = -nodal_difference
+                             member_index] = -nodal_difference
 
         if reduce_rows:
             indices = np.array(sorted(list(self.free_dofs))) - 1
@@ -216,6 +216,33 @@ class Tensegrity:
             return self.get_equilibrium_matrix().transpose()
         else:
             return self.get_equilibrium_matrix(False).transpose()
+
+    def get_rigidity_matrix(self, reduce_columns: bool = True) -> np.ndarray:
+        """This method returns the rigidity matrix [R] of the tensegrity.
+        The compatibility condition is controlled by :math:`[R]{v} = {\epsilon}`,
+        where :math:`[R]` is the rigidity matrix, :math:`{v}` is the nodal
+        velocity vector, and :math:`{\epsilon}` is the member strain vector.
+
+        The full rigidity matrix is b-by-nd, where d is the dimension of the
+        ambient space, n is the number of nodes, and b is the number of members.
+        The rigidity matrix is the transpose of the geometric matrix.
+        However, by default the method will not return the full matrix if there
+        are DOF constraints. Instead, the columns corresponding to the constrained
+        DOFs will be deleted. This behaviour can be changed by setting the parameter
+        reduce_rows to be False, which gives the full matrix.
+
+        Each column of the geometric matrix corresponds to a DOF of the structure.
+        The DOFs associated with one node are grouped together. Therefore, for example,
+        the first three columns correspond to x, y and z directions of Node 1.
+
+        :param reduce_columns: bool
+        :return: the rigidity matrix :math:`[R]`
+        :rtype: np.ndarray
+        """
+        if reduce_columns:
+            return self.get_geometric_matrix().transpose()
+        else:
+            return self.get_geometric_matrix(False).transpose()
 
 
 if __name__ is "__main__":
