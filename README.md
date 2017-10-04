@@ -1,5 +1,7 @@
 # tensegritypy
-TensegrityPy is a project collecting functions related to tensegrity structures for scientific research. This is an ongoing project.
+TensegrityPy is a project collecting functions related to tensegrity structures for scientific research. 
+
+**This is an ongoing project**.
 
 # Examples
 ## Create a tensegrity
@@ -16,13 +18,13 @@ import numpy as np
 
 import tensegrity
 
-config = {nodal_coordinates: np.array([[0.2588, 0.9659, 0.5],      # Node 1
+config = {'nodal_coordinates': np.array([[0.2588, 0.9659, 0.5],      # Node 1
                                        [-0.9659, -0.2588, 0.5],    # Node 2
                                        [0.7071, -0.7071, 0.5],     # Node 3
                                        [0.2588, -0.9659, -0.5],    # Node 4
                                        [0.7071, 0.7071, -0.5],     # Node 5
                                        [-0.9659, 0.2588, -0.5]]),  # Node 6
-          connectivity: np.array([[1, 2],
+          'connectivity': np.array([[1, 2],
                                   [2, 3],
                                   [1, 3],
                                   [4, 5],
@@ -34,7 +36,7 @@ config = {nodal_coordinates: np.array([[0.2588, 0.9659, 0.5],      # Node 1
                                   [1, 4],
                                   [2, 5],
                                   [3, 6]]),
-          member_types: [tensegrity.Member.CABLE, tensegrity.Member.CABLE, tensegrity.Member.CABLE, tensegrity.Member.CABLE,
+          'member_types': [tensegrity.Member.CABLE, tensegrity.Member.CABLE, tensegrity.Member.CABLE, tensegrity.Member.CABLE,
                          tensegrity.Member.CABLE, tensegrity.Member.CABLE, tensegrity.Member.CABLE, tensegrity.Member.CABLE,
                          tensegrity.Member.CABLE, tensegrity.Member.BAR, tensegrity.Member.BAR, tensegrity.Member.BAR]}
                          
