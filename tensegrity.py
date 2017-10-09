@@ -58,6 +58,10 @@ class Tensegrity:
         """
         if dofs:
             for dof in dofs:
+                if not isinstance(dof, int):
+                    raise TypeError("DOF number must be an integer.")
+                elif dof <= 0:
+                    raise ValueError("DOF number must be a positive integer.")
                 self.fixed_dofs.add(dof)
                 self.free_dofs.remove(dof)
 
@@ -69,6 +73,10 @@ class Tensegrity:
         """
         if dofs:
             for dof in dofs:
+                if not isinstance(dof, int):
+                    raise TypeError("DOF number must be an integer.")
+                elif dof <= 0:
+                    raise ValueError("DOF number must be a positive integer.")
                 self.free_dofs.add(dof)
                 self.fixed_dofs.remove(dof)
 
