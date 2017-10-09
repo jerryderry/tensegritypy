@@ -260,7 +260,7 @@ class Tensegrity:
         else:
             return self.get_geometric_matrix(False).transpose()
 
-    def get_laplacian_matrix(self):
+    def get_laplacian_matrix(self) -> np.ndarray:
         """This method returns the Laplacian matrix associated with a tensegrity.
         The equilibrium condition of a 3D tensegrity can also be express by
         .. math::
@@ -292,7 +292,7 @@ class Tensegrity:
         force_density_matrix = np.diagonal(self.force_densities)
         return np.linalg.multi_dot([incidence_matrix.transpose(), force_density_matrix, incidence_matrix])
 
-    def get_stress_matrix(self, reduced: bool = True, grouped: str = "by_node"):
+    def get_stress_matrix(self, reduced: bool = True, grouped: str = "by_node") -> np.ndarray:
         """This method returns the stress matrix [S] associated with a tensegrity.
         If the rows of the matrix are grouped by nodes, i.e., the rows corresponding
         to different directions of the same node are grouped together, then the stress
@@ -342,8 +342,7 @@ class Tensegrity:
         else:
             raise ValueError("The way of grouping can only be by_node or by_direction.")
 
-    
-    def get_axial_stiffness_matrix(self):
+    def get_axial_stiffness_matrix(self) -> np.ndarray:
         """This method returns a diagonal matrix [G] whose diagonal entries are the
         axial stiffness of the members.
 
@@ -352,6 +351,143 @@ class Tensegrity:
         """
         return np.diagonal(np.divide(np.multiply(self.youngs_modulii, self.cross_section_areas),
                                      self.original_lengths))
+
+    def get_tangent_stiffness_matrix(self, reduced: bool = True, kind: str = "default") -> np.ndarray:
+        """This method returns the tangent stiffness matrix of a tensegrity structure.
+        The default kind of matrix is calculated as:
+        .. math::
+        [\mathbf{K}_t] = [\mathbf{A}]([\mathbf{G}] - [\mathbf{Q}])[\mathbf{A}]^T + [\mathbf{S}],
+
+        where :math:`[\mathbf{K}_t]` is the tangent stiffness matrix,
+        :math:`[\mathbf{A}]` is the equilibrium matrix, :math:`[\mathbf{G}]` is the
+        axial stiffness matrix, :math:`[\mathbf{Q}]` is the diagonal force density matrix,
+        and :math:`[\mathbf{S}]` is the stress matrix.
+
+        If kind is "modified", then the matrix is calculated as:
+        .. math::
+        [\mathbf{K}_t] = [\mathbf{A}][\mathbf{G}][\mathbf{A}]^T + [\mathbf{S}].
+
+        If kind is "Murakami", then it is calculated as described in Eqn (36b) and
+        Eqn (36c) of the paper by Murakami: "Static and Dynamic Analyses of Tensegrity
+        Structures. Part 1. Nonlinear equations of motion (2001)".
+
+        By default the method will not return the full matrix if there
+        are DOF constraints. Instead, the rows and columns corresponding to the
+        constrained DOFs will be deleted. This behaviour can be changed by setting
+        the parameter reduced to be False, which gives the full matrix.
+
+        :param reduced: whether to delete rows and columns corresponding to fixed DOFs
+        :type reduced: bool
+        :param kind: which kind of tangent stiffness matrix to return
+        :type kind: str
+        :return: the tangent stiffness matrix
+        :rtype: np.ndarray
+        """
+        if kind == "default":
+            equilibrium_matrix = self.get_equilibrium_matrix(reduce_rows=reduced)
+            force_density_matrix = np.diagonal(self.force_densities)
+            axial_stiffness_matrix = self.get_axial_stiffness_matrix()
+            zero_member_force = self.force_densities == 0
+            axial_stiffness_matrix[zero_member_force, zero_member_force] = 0
+            stress_matrix = self.get_stress_matrix(reduced=reduced)
+            return np.linalg.multi_dot([equilibrium_matrix, (axial_stiffness_matrix - force_density_matrix),
+                                        equilibrium_matrix.transpose()]) + stress_matrix
+        elif kind == "modified":
+            equilibrium_matrix = self.get_equilibrium_matrix(reduce_rows=reduced)
+            axial_stiffness_matrix = self.get_axial_stiffness_matrix()
+            zero_member_force = self.force_densities == 0
+            axial_stiffness_matrix[zero_member_force, zero_member_force] = 0
+            stress_matrix = self.get_stress_matrix(reduced=reduced)
+            return np.linalg.multi_dot([equilibrium_matrix, axial_stiffness_matrix,
+                                        equilibrium_matrix.transpose()]) + stress_matrix
+        elif kind == "Murakami":
+            tangent_stiffness_matrix = np.zeros((self.number_of_nodes * self.dimension,
+                                                 self.number_of_nodes * self.dimension))
+            member_lengths = self.get_member_lengths()
+            for i in range(self.number_of_members):
+                element_stiffness_matrix = np.zeros((2 * self.dimension, 2 * self.dimension))
+                node1 = self.connectivity[i, 0]
+                node2 = self.connectivity[i, 1]
+                member_direction = self.nodal_coordinates[node1 - 1, :] - self.nodal_coordinates[node2 - 1, :]
+                unit_member_direction = member_direction / np.linalg.norm(member_direction)
+                element_stiffness_matrix[0:self.dimension-1,
+                                         0:self.dimension-1] = np.dot(unit_member_direction.transpose(),
+                                                                      unit_member_direction)
+                element_stiffness_matrix[self.dimension:-1,
+                                         self.dimension:-1] = np.dot(unit_member_direction.transpose(),
+                                                                     unit_member_direction)
+                element_stiffness_matrix[self.dimension:-1,
+                                         0:self.dimension-1] = -np.dot(unit_member_direction.transpose(),
+                                                                       unit_member_direction)
+                element_stiffness_matrix[0:self.dimension-1,
+                                         self.dimension:-1] = -np.dot(unit_member_direction.transpose(),
+                                                                      unit_member_direction)
+                element_stiffness_matrix = (self.youngs_modulii[i] * self.cross_section_areas[i]
+                                            / member_lengths[i]) * element_stiffness_matrix
+
+                element_stress_matrix = np.identity(2 * self.dimension)
+                element_stress_matrix[0:self.dimension-1, self.dimension:-1] = -np.identity(self.dimension)
+                element_stress_matrix[self.dimension:-1, 0:self.dimension-1] = -np.identity(self.dimension)
+                element_stress_matrix = self.force_densities[i] * element_stress_matrix
+
+                element_stiffness_matrix = element_stiffness_matrix + element_stress_matrix
+
+                global_local_map = np.zeros(2 * self.dimension, self.number_of_nodes * self.dimension)
+                global_local_map[0:self.dimension-1,
+                                 (node1-1)*self.dimension:node1*self.dimension-1] = np.identity(self.dimension)
+                global_local_map[self.dimension:-1,
+                                 (node2-1)*self.dimension:node2*self.dimension-1] = np.identity(self.dimension)
+
+                tangent_stiffness_matrix = tangent_stiffness_matrix + np.linalg.multi_dot([global_local_map.transpose(),
+                                                                                           element_stiffness_matrix,
+                                                                                           global_local_map])
+            if reduced:
+                indices = np.array(sorted(list(self.free_dofs))) - 1
+                return tangent_stiffness_matrix[indices, indices]
+            return tangent_stiffness_matrix
+        else:
+            raise ValueError("Does not recognize the matrix kind.")
+
+    def get_member_lengths(self) -> np.ndarray:
+        """This method returns a vector of member lengths.
+
+        If a member is a cable, and the nodal distance is smaller than the original
+        length of the cable, then its member length will be set to equal its
+        original length.
+
+        :return: a vector of member lengths
+        :rtype: np.ndarray
+        """
+        if not self.original_lengths:
+            return self.get_nodal_distances()
+        member_lengths = np.zeros(self.number_of_members)
+        for i in range(self.number_of_members):
+            node1 = self.connectivity[i, 0]
+            node2 = self.connectivity[i, 1]
+            distance = np.linalg.norm(self.nodal_coordinates[node1 - 1, :] - self.nodal_coordinates[node2 - 1, :])
+            if self.member_types[i] is Member.CABLE and distance <= self.original_lengths[i]:
+                member_lengths[i] = self.original_lengths[i]
+            else:
+                member_lengths[i] = distance
+        return member_lengths
+
+    def get_nodal_distances(self) -> np.ndarray:
+        """This method returns a vector of nodal distances of the structure,
+        if there is a member connected between two nodes.
+
+        The difference between this method and get_member_lengths() is that
+        nodal distances will not be compared with original lengths.
+
+        :return: a vector of nodal distances between nodes that are connected
+        :rtype: np.ndarray
+        """
+        nodal_distances = np.zeros(self.number_of_members)
+        for i in range(self.number_of_members):
+            node1 = self.connectivity[i, 0]
+            node2 = self.connectivity[i, 1]
+            nodal_distances[i] = np.linalg.norm(self.nodal_coordinates[node1 - 1, :]
+                                                - self.nodal_coordinates[node2 - 1, :])
+        return nodal_distances
 
 
 if __name__ is "__main__":
