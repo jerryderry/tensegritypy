@@ -21,6 +21,10 @@ class Tensegrity:
         self.number_of_members = connectivity.shape[0]
         self.free_dofs = set(range(1, self.dimension * self.number_of_nodes + 1))
         self.fixed_dofs = set()
+        self.force_densities = None
+        self.youngs_modulii = None
+        self.cross_section_areas = None
+        self.original_lengths = None
 
     def get_placement(self) -> np.ndarray:
         """Get the current placement vector of the structure.
@@ -251,6 +255,48 @@ class Tensegrity:
             return self.get_geometric_matrix().transpose()
         else:
             return self.get_geometric_matrix(False).transpose()
+
+    def get_laplacian_matrix(self):
+        """This method returns the Laplacian matrix associated with a tensegrity.
+        The equilibrium condition of a 3D tensegrity can also be express by
+        .. math::
+        [\mathbf{L}]{\mathbf{x}] &= {\mathbf{f}_x},\\
+        [\mathbf{L}]{\mathbf{y}] &= {\mathbf{f}_y},\\
+        [\mathbf{L}]{\mathbf{z}] &= {\mathbf{f}_z},
+
+        where :math:`[\mathbf{L}]` is the Laplacian matrix, :math:`{\mathbf{x}}`,
+        :math:`{\mathbf{y}}` and :math:`{\mathbf{z}}` are nodal coordinate vectors
+        in directions x, y and z, respectively, and similarly, :math:`{\mathbf{f}_x}`,
+        :math:`{\mathbf{f}_y}` and :math:`{\mathbf{f}_z}` are external nodal
+        force vectors in the three directions.
+
+        The Laplacian matrix is n-by-n, where n is the number of nodes. Its off-diagonal
+        element :math:`L_{ij}` is the force density of Member ij with negative sign. If
+        there is no member between Node i and Node j, then :math:`L_{ij}` is zero. The
+        diagonal entries are the sum of the other entries on the same row with an
+        opposite sign, such that the row sums of the matrix are zeros.
+
+        The Laplacian matrix is symmetric.
+
+        :return: the Laplacian matrix :math:`[\mathbf{L}]`
+        :rtype: np.ndarray
+        """
+        if not self.force_densities:
+            # TODO: Raise exception
+            pass
+        incidence_matrix = self.get_incidence_matrix()
+        force_density_matrix = np.diagonal(self.force_densities)
+        return np.linalg.multi_dot([incidence_matrix.transpose(), force_density_matrix, incidence_matrix])
+
+    def get_axial_stiffness_matrix(self):
+        """This method returns a diagonal matrix [G] whose diagonal entries are the
+        axial stiffness of the members.
+
+        :return: the axial stiffness matrix [G]
+        :rtype: np.ndarray
+        """
+        return np.diagonal(np.divide(np.multiply(self.youngs_modulii, self.cross_section_areas),
+                                     self.original_lengths))
 
 
 if __name__ is "__main__":
