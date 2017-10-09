@@ -141,7 +141,8 @@ class Tensegrity:
         The DOFs associated with one node are grouped together. Therefore, for example,
         the first three rows correspond to x, y and z directions of Node 1.
 
-        :param reduce_rows: bool
+        :param reduce_rows: whether to delete rows corresponding to fixed DOFs
+        :type reduce_rows: bool
         :return: the equilibrium matrix [A]
         :rtype: np.ndarray
         """
@@ -181,7 +182,8 @@ class Tensegrity:
         The DOFs associated with one node are grouped together. Therefore, for example,
         the first three rows correspond to x, y and z directions of Node 1.
 
-        :param reduce_rows: bool
+        :param reduce_rows: whether to delete rows corresponding to fixed DOFs
+        :type reduce_rows: bool
         :return: the geometric matrix :math:`[\Pi]`
         :rtype: np.ndarray
         """
@@ -220,7 +222,8 @@ class Tensegrity:
         The DOFs associated with one node are grouped together. Therefore, for example,
         the first three columns correspond to x, y and z directions of Node 1.
 
-        :param reduce_columns: bool
+        :param reduce_columns: whether to delete columns corresponding to fixed DOFs
+        :type reduce_columns: bool
         :return: the compatibility matrix :math:`[B]`
         :rtype: np.ndarray
         """
@@ -247,7 +250,8 @@ class Tensegrity:
         The DOFs associated with one node are grouped together. Therefore, for example,
         the first three columns correspond to x, y and z directions of Node 1.
 
-        :param reduce_columns: bool
+        :param reduce_columns: whether to delete columns corresponding to fixed DOFs
+        :type reduce_columns: bool
         :return: the rigidity matrix :math:`[R]`
         :rtype: np.ndarray
         """
@@ -288,6 +292,57 @@ class Tensegrity:
         force_density_matrix = np.diagonal(self.force_densities)
         return np.linalg.multi_dot([incidence_matrix.transpose(), force_density_matrix, incidence_matrix])
 
+    def get_stress_matrix(self, reduced: bool = True, grouped: str = "by_node"):
+        """This method returns the stress matrix [S] associated with a tensegrity.
+        If the rows of the matrix are grouped by nodes, i.e., the rows corresponding
+        to different directions of the same node are grouped together, then the stress
+        matrix is calculated by
+        .. math::
+        [\mathbf{S}] = [\mathbf{L}] \otimes [\mathbf{I}_d],
+
+        where d is the dimension of the structure. However, if rows are grouped by
+        directions, then it is calculated by
+        .. math::
+        [\mathbf{S}] = [\mathbf{I}_d] \otimes [\mathbf{L}].
+
+        The full stress matrix is dn-by-dn, where d is the dimension of the
+        ambient space, n is the number of nodes.
+
+        However, by default the method will not return the full matrix if there
+        are DOF constraints. Instead, the rows and columns corresponding to the
+        constrained DOFs will be deleted. This behaviour can be changed by setting
+        the parameter reduced to be False, which gives the full matrix.
+
+        :param reduced: whether to delete rows and columns corresponding to constrained
+        DOFs
+        :type reduced: bool
+        :param grouped: how the rows are grouped, can be "by_node" or "by_direction"
+        :type grouped: str
+        :return: the stress matrix [S]
+        :rtype: np.ndarray
+        """
+        if grouped == "by_node":
+            stress_matrix = np.kron(self.get_laplacian_matrix(), np.identity(self.dimension))
+            if reduced:
+                indices = np.array(sorted(list(self.free_dofs))) - 1
+                return stress_matrix[indices, indices]
+            return stress_matrix
+        elif grouped == "by_direction":
+            stress_matrix = np.kron(np.identity(self.dimension), self.get_laplacian_matrix())
+            if reduced:
+                indices = []
+                dofs = sorted(list(self.free_dofs))
+                for dof in dofs:
+                    node_zero_base = (dof - 1) // self.dimension
+                    direction_zero_base = (dof - 1) % self.dimension
+                    indices.append(node_zero_base * self.dimension + direction_zero_base)
+                indices = np.array(indices)
+                return stress_matrix[indices, indices]
+            return stress_matrix
+        else:
+            raise ValueError("The way of grouping can only be by_node or by_direction.")
+
+    
     def get_axial_stiffness_matrix(self):
         """This method returns a diagonal matrix [G] whose diagonal entries are the
         axial stiffness of the members.
